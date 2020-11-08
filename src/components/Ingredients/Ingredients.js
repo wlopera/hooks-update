@@ -1,4 +1,4 @@
-import React, { useReducer, useState, useEffect, useCallback, useContext } from "react";
+import React, { useReducer, useCallback, useMemo } from "react";
 
 import IngredientForm from "./IngredientForm";
 import IngredientList from "./IngredientList";
@@ -21,47 +21,58 @@ const ingredientsReducer = (currentIngredients, action) => {
   }
 };
 
+const httpReducer = (curHttpState, action) => {
+  switch (action.type) {
+    case "SEND":
+      return { loading: true, error: null };
+    case "RESPONSE":
+      return { ...curHttpState, loading: false };
+    case "ERROR":
+      return { loading: false, error: action.errorMessage };
+    case "CLEAR":
+      return { ...curHttpState, error: null };
+
+    default:
+      throw new Error("Error en consulta servicio HTTP");
+  }
+};
+
 const Ingredients = () => {
   const [useIngredients, dispatch] = useReducer(ingredientsReducer, []);
-  //const [useIngredients, setUseIngredients] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState();
+  const [httpState, dispatchHttp] = useReducer(httpReducer, { loading: false, error: null });
 
-  // useEffect(() => {
-  //   console.log("Renderizando ingredientes");
-  // }, [setUseIngredients]);
-
-  const addIngredientHandler = (ingredient) => {
-    setIsLoading(true);
+  const addIngredientHandler = useCallback((ingredient) => {
+    dispatchHttp({ type: "SEND" });
     fetch("https://react-hooks-update-8abf4.firebaseio.com/ingredients.json", {
       method: "POST",
       body: JSON.stringify(ingredient),
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "http://localhost:3000" },
     })
       .then((response) => {
-        setIsLoading(false);
+        dispatchHttp({ type: "RESPONSE" });
         return response.json();
       })
       .then((reponseData) => {
         //setUseIngredients((prevIngredients) => [...prevIngredients, { id: reponseData.name, ...ingredient }]);
         dispatch({ type: "ADD", ingredient: { id: reponseData.name, ...ingredient } });
       });
-  };
+  }, []);
 
-  const removeIngredientHandler = (id) => {
-    setIsLoading(true);
+  const removeIngredientHandler = useCallback((id) => {
+    dispatchHttp({ type: "SEND" });
     fetch(`https://react-hooks-update-8abf4.firebaseio.com/ingredients/${id}.json`, {
       method: "DELETE",
+      headers: { "Access-Control-Allow-Origin": "http://localhost:3000" },
     })
       .then((response) => {
-        setIsLoading(false);
+        dispatchHttp({ type: "RESPONSE" });
         //setUseIngredients((prevIngredients) => prevIngredients.filter((ingredient) => ingredient.id !== id));
         dispatch({ type: "DELETE", id: id });
       })
       .catch((err) => {
-        setError("Error removiendo ingrediente: " + err);
+        dispatchHttp({ type: "SEND", errorMessage: "Error removiendo ingrediente: " + err });
       });
-  };
+  }, []);
 
   const filterIngredientsHandler = useCallback(
     (filterIngredients) => {
@@ -71,19 +82,22 @@ const Ingredients = () => {
     [dispatch]
   );
 
-  const clearError = () => {
-    setError(null);
-    setIsLoading(false);
-  };
+  const clearError = useCallback(() => {
+    dispatchHttp({ type: "CLEAR" });
+  }, []);
+
+  const ingredientList = useMemo(() => {
+    return <IngredientList ingredients={useIngredients} onRemoveItem={removeIngredientHandler} />;
+  }, [useIngredients, removeIngredientHandler]);
 
   return (
     <div className="App">
-      {error && <ErrorModal onClose={clearError}>{error}</ErrorModal>}
-      <IngredientForm onAddIngredient={addIngredientHandler} loading={isLoading} />
+      {httpState.error && <ErrorModal onClose={clearError}>{httpState.error}</ErrorModal>}
+      <IngredientForm onAddIngredient={addIngredientHandler} loading={httpState.loading} />
 
       <section>
         <Search onLoadIngredients={filterIngredientsHandler} />
-        <IngredientList ingredients={useIngredients} onRemoveItem={removeIngredientHandler} />
+        {ingredientList}
       </section>
     </div>
   );

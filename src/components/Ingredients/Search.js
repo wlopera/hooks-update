@@ -12,10 +12,14 @@ const Search = React.memo((props) => {
 
   useEffect(() => {
     const timer = setTimeout(() => {
+      console.log(111, enteredFilter, inputRef.current.value);
       if (enteredFilter === inputRef.current.value) {
         const query = enteredFilter.length === 0 ? "" : `?orderBy="title"&equalTo="${enteredFilter}"`;
 
-        fetch("https://react-hooks-update-8abf4.firebaseio.com/ingredients.json" + query)
+        fetch("https://react-hooks-update-8abf4.firebaseio.com/ingredients.json" + query, {
+          method: "GET",
+          headers: { "Access-Control-Allow-Origin": "http://localhost:3000" },
+        })
           .then((response) => {
             return response.json();
           })
